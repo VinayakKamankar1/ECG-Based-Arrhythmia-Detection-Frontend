@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Patient Profile — CardioAI Intelligence</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <link rel="stylesheet" href="css/style.css"/>
+  <script src="js/config.js"></script>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-icon"><i class="fas fa-heart-pulse"></i></div>
+    <div>
+      <div class="brand-name">CardioAI</div>
+      <div class="brand-sub">Rhythm Intelligence</div>
+    </div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">WORKSPACE</div>
+    <a href="index.html" class="nav-item">
+      <i class="fas fa-chart-line"></i><span>Dashboard</span>
+    </a>
+    <a href="analyze.html" class="nav-item">
+      <i class="fas fa-upload"></i><span>Analyze ECG</span>
+    </a>
+    <a href="results.html" class="nav-item">
+      <i class="fas fa-microscope"></i><span>Results</span>
+    </a>
+    <a href="report.html" class="nav-item">
+      <i class="fas fa-file-medical"></i><span>Clinical Report</span>
+    </a>
+    
+    <div class="nav-section-label" style="margin-top:22px;">PATIENTS</div>
+    <a href="patients.html" class="nav-item active">
+      <i class="fas fa-users"></i><span>Patient Directory</span>
+    </a>
+    <a href="add_patient.html" class="nav-item">
+      <i class="fas fa-user-plus"></i><span>Enroll Patient</span>
+    </a>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div id="backend-status-badge" class="model-badge" title="Click to configure backend API URL">
+      <span id="backend-status-dot" style="width:7px;height:7px;border-radius:50%;background:#f59e0b;display:inline-block;"></span>
+      <span id="backend-status-text">Connecting...</span>
+    </div>
+  </div>
+</aside>
+
+<div class="main-wrap">
+  <header class="topbar">
+    <div class="topbar-left">
+      <h2 class="page-title" id="page-patient-name">Patient Profile</h2>
+      <span class="page-sub" id="page-patient-sub">Loading longitudinal patient data...</span>
+    </div>
+    <div class="topbar-right">
+      <div class="topbar-badge"><i class="fas fa-shield-heart"></i> MIT-BIH Standard</div>
+      <div class="topbar-badge"><i class="fas fa-bolt"></i> 360 Hz Real-Time</div>
+    </div>
+  </header>
+
+  <main class="page-content" id="profile-container">
+    <div id="profile-loading" style="text-align:center;padding:48px 0;color:var(--color-charcoal);">
+      <i class="fas fa-spinner fa-spin fa-2x"></i>
+      <p style="margin-top:12px;">Loading patient telemetry...</p>
+    </div>
+    <div id="profile-view" style="display:none;"></div>
+  </main>
+</div>
+
+<script>
+async function loadPatientProfile() {
+  const params = new URLSearchParams(window.location.search);
+  const patientId = params.get('id');
+  if (!patientId) {
+    window.location.href = 'patients.html';
+    return;
+  }
+
+  try {
+    const res = await fetch(window.getApiUrl(`/api/patients/${patientId}`));
+    if (!res.ok) throw new Error('Patient not found');
+    const json = await res.json();
+    renderProfile(json.patient, json.improvements, json.latest_record);
+  } catch(e) {
+    document.getElementById('profile-loading').innerHTML = `
+      <div class="alert alert-error" style="max-width:600px;margin:20px auto;">
+        <i class="fas fa-circle-exclamation"></i>
+        <div><strong>Error:</strong> Could not load patient profile (${e.message}). <a href="patients.html">Back to Directory</a></div>
+      </div>`;
+  }
+}
+
+function renderProfile(p, improvements, latest) {
+  document.getElementById('profile-loading').style.display = 'none';
+  const pv = document.getElementById('profile-view');
+  pv.style.display = 'block';
+
+  document.getElementById('page-patient-name').textContent = p.full_name;
+  document.getElementById('page-patient-sub').textContent = `Record #${p.id.slice(0, 8)} · Enrolled ${p.created_at ? p.created_at.slice(0, 10) : ''}`;
+
+  const recCount = p.ecg_records ? p.ecg_records.length : 0;
+  const apptCount = p.appointments ? p.appointments.length : 0;
+
+  let riskTierHtml = 'N/A';
+  if (latest) {
+    if (latest.risk_level === 'High') {
+      riskTierHtml = '<span style="color:var(--color-signal-red);">High Risk</span>';
+    } else if (latest.risk_level === 'Moderate') {
+      riskTierHtml = '<span style="color:var(--color-warning);">Moderate</span>';
+    } else {
+      riskTierHtml = '<span style="color:var(--color-ink);">Low Risk</span>';
+    }
+  }
+
+  let trajectoryHtml = 'Stable';
+  if (improvements && improvements.risk) {
+    if (improvements.risk.improved) {
+      trajectoryHtml = '<span style="color:var(--color-success);"><i class="fas fa-arrow-trend-up"></i> Stabilizing</span>';
+    } else {
+      trajectoryHtml = '<span style="color:var(--color-signal-red);"><i class="fas fa-arrow-trend-down"></i> Under Review</span>';
+    }
+  }
+
+  let html = `
+  <!-- Top Stats Grid -->
+  <div class="stats-grid" style="margin-bottom:28px;">
+    <div class="stat-card">
+      <div class="stat-icon"><i class="fas fa-file-waveform"></i></div>
+      <div>
+        <div class="stat-val">${recCount}</div>
+        <div class="stat-lbl">ECG Waveforms</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon"><i class="fas fa-calendar-check"></i></div>
+      <div>
+        <div class="stat-val">${apptCount}</div>
+        <div class="stat-lbl">Consultations</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon"><i class="fas fa-shield-heart"></i></div>
+      <div>
+        <div class="stat-val" style="font-size:1.35rem;">${riskTierHtml}</div>
+        <div class="stat-lbl">Current Risk Tier</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon"><i class="fas fa-chart-line"></i></div>
+      <div>
+        <div class="stat-val" style="font-size:1.35rem;">${trajectoryHtml}</div>
+        <div class="stat-lbl">Longitudinal Trajectory</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-2 section-gap">
+    <!-- Personal Profile Card -->
+    <div class="card">
+      <div class="eyebrow" style="color:var(--color-charcoal);margin-bottom:6px;">PATIENT IDENTITY</div>
+      <div class="card-title"><i class="fas fa-user" style="color:var(--color-charcoal);"></i> Demographics &amp; Contact</div>
+      
+      <div style="margin-top:18px;display:grid;gap:10px;">
+        <div style="display:flex;justify-content:space-between;padding:10px 14px;background:var(--color-linen);border-radius:var(--radius-buttons);font-size:0.875rem;">
+          <span style="color:var(--color-charcoal);font-weight:500;">Full Legal Name</span>
+          <span style="color:var(--color-ink);font-weight:600;">${p.full_name}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:10px 14px;background:var(--color-linen);border-radius:var(--radius-buttons);font-size:0.875rem;">
+          <span style="color:var(--color-charcoal);font-weight:500;">Date of Birth</span>
+          <span style="color:var(--color-ink);">${p.dob || '—'}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:10px 14px;background:var(--color-linen);border-radius:var(--radius-buttons);font-size:0.875rem;">
+          <span style="color:var(--color-charcoal);font-weight:500;">Biological Sex</span>
+          <span style="color:var(--color-ink);">${p.gender || '—'}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:10px 14px;background:var(--color-linen);border-radius:var(--radius-buttons);font-size:0.875rem;">
+          <span style="color:var(--color-charcoal);font-weight:500;">Primary Phone</span>
+          <span style="color:var(--color-ink);font-family:monospace;">${p.mobile_no || '—'}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:10px 14px;background:var(--color-linen);border-radius:var(--radius-buttons);font-size:0.875rem;">
+          <span style="color:var(--color-charcoal);font-weight:500;">Email Address</span>
+          <span style="color:var(--color-ink);">${p.email || '—'}</span>
+        </div>
+        <div style="padding:10px 14px;background:var(--color-linen);border-radius:var(--radius-buttons);font-size:0.875rem;">
+          <div style="color:var(--color-charcoal);font-weight:500;margin-bottom:4px;">Registered Address</div>
+          <div style="color:var(--color-ink);line-height:1.5;">${p.address || '—'}</div>
+        </div>
+      </div>
+      
+      <div style="margin-top:20px;">
+        <a href="analyze.html?patient_id=${encodeURIComponent(p.id)}" class="btn btn-primary btn-pill" style="display:flex;justify-content:center;">
+          <i class="fas fa-upload"></i> Analyze New ECG for this Patient
+        </a>
+      </div>
+    </div>
+
+    <!-- Medical Overview Card -->
+    <div class="card">
+      <div class="eyebrow" style="color:var(--color-charcoal);margin-bottom:6px;">CLINICAL STATUS</div>
+      <div class="card-title"><i class="fas fa-notes-medical" style="color:var(--color-signal-red);"></i> Medical History &amp; Pathology</div>
+      
+      <div style="margin-top:18px;">
+        <div class="eyebrow" style="color:var(--color-charcoal);font-size:10px;">PRIMARY INDICATION / KNOWN PATHOLOGY</div>
+        <div style="padding:10px 14px;background:var(--color-linen);border-radius:var(--radius-buttons);font-size:0.9rem;font-weight:600;color:var(--color-ink);margin-top:4px;">
+          ${p.disease || 'No primary indication noted'}
+        </div>
+      </div>
+
+      <div style="margin-top:16px;">
+        <div class="eyebrow" style="color:var(--color-charcoal);font-size:10px;">LONGITUDINAL MEDICAL HISTORY</div>
+        <div style="padding:12px 14px;background:var(--color-linen);border-radius:var(--radius-buttons);font-size:0.85rem;color:var(--color-charcoal);line-height:1.6;margin-top:4px;min-height:90px;">
+          ${p.medical_history || 'No recorded prior surgical or pharmacological history.'}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ECG Record History -->
+  <div class="card section-gap">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
+      <div>
+        <div class="eyebrow" style="color:var(--color-charcoal);margin-bottom:4px;">ARCHIVAL LOG</div>
+        <div class="card-title"><i class="fas fa-wave-square" style="color:var(--color-signal-red);"></i> Longitudinal ECG Records</div>
+        <div class="card-sub" style="margin-bottom:0;">Full historical timeline of processed cardiac telemetry</div>
+      </div>
+      <a href="analyze.html?patient_id=${encodeURIComponent(p.id)}" class="btn btn-primary btn-pill">
+        <i class="fas fa-plus"></i> Ingest New Trace
+      </a>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Date &amp; Time</th>
+            <th>Source File</th>
+            <th>Total Beats</th>
+            <th>Dominant Rhythm</th>
+            <th>Risk Score</th>
+            <th>Primary Diagnosis</th>
+            <th>Recovery Target</th>
+          </tr>
+        </thead>
+        <tbody>`;
+
+  if (!p.ecg_records || !p.ecg_records.length) {
+    html += `
+      <tr>
+        <td colspan="7" style="text-align:center;padding:32px;color:var(--color-charcoal);">
+          No ECG records stored yet for this patient. Click <strong>Ingest New Trace</strong> to run one.
+        </td>
+      </tr>`;
+  } else {
+    p.ecg_records.forEach(rec => {
+      const riskClass = (rec.risk_level || 'low').toLowerCase();
+      const primaryDiag = rec.diagnoses && rec.diagnoses.length ? rec.diagnoses[0].name : 'Normal Sinus Rhythm';
+      html += `
+      <tr>
+        <td style="font-size:0.82rem;color:var(--color-charcoal);">${rec.date || '—'}</td>
+        <td style="font-weight:500;font-size:0.85rem;">${rec.filename || 'sample.csv'}</td>
+        <td style="font-family:var(--font-mdio);">${rec.total_beats || 0}</td>
+        <td><span class="badge badge-${rec.dominant_rhythm || 'N'}">${rec.dominant_rhythm || 'N'}</span></td>
+        <td><span class="badge badge-${riskClass}">${rec.risk_level || 'Low'} (${rec.risk_score || 0}%)</span></td>
+        <td style="font-size:0.85rem;color:var(--color-ink);">${primaryDiag}</td>
+        <td style="font-family:var(--font-mdio);">${rec.recovery_days !== null && rec.recovery_days !== undefined ? rec.recovery_days + ' days' : '—'}</td>
+      </tr>`;
+    });
+  }
+
+  html += `
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+
+  pv.innerHTML = html;
+}
+
+document.addEventListener('DOMContentLoaded', loadPatientProfile);
+</script>
+</body>
+</html>

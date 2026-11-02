@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Analyze ECG — CardioAI Intelligence</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <link rel="stylesheet" href="css/style.css"/>
+  <script src="js/config.js"></script>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-icon"><i class="fas fa-heart-pulse"></i></div>
+    <div>
+      <div class="brand-name">CardioAI</div>
+      <div class="brand-sub">Rhythm Intelligence</div>
+    </div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">WORKSPACE</div>
+    <a href="index.html" class="nav-item">
+      <i class="fas fa-chart-line"></i><span>Dashboard</span>
+    </a>
+    <a href="analyze.html" class="nav-item active">
+      <i class="fas fa-upload"></i><span>Analyze ECG</span>
+    </a>
+    <a href="results.html" class="nav-item">
+      <i class="fas fa-microscope"></i><span>Results</span>
+    </a>
+    <a href="report.html" class="nav-item">
+      <i class="fas fa-file-medical"></i><span>Clinical Report</span>
+    </a>
+    
+    <div class="nav-section-label" style="margin-top:22px;">PATIENTS</div>
+    <a href="patients.html" class="nav-item">
+      <i class="fas fa-users"></i><span>Patient Directory</span>
+    </a>
+    <a href="add_patient.html" class="nav-item">
+      <i class="fas fa-user-plus"></i><span>Enroll Patient</span>
+    </a>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div id="backend-status-badge" class="model-badge" title="Click to configure backend API URL">
+      <span id="backend-status-dot" style="width:7px;height:7px;border-radius:50%;background:#f59e0b;display:inline-block;"></span>
+      <span id="backend-status-text">Connecting...</span>
+    </div>
+  </div>
+</aside>
+
+<div class="main-wrap">
+  <header class="topbar">
+    <div class="topbar-left">
+      <h2 class="page-title">Analyze Waveform</h2>
+      <span class="page-sub">Upload lead signals and run calibrated arrhythmia inference</span>
+    </div>
+    <div class="topbar-right">
+      <div class="topbar-badge"><i class="fas fa-shield-heart"></i> MIT-BIH Standard</div>
+      <div class="topbar-badge"><i class="fas fa-bolt"></i> 360 Hz Real-Time</div>
+    </div>
+  </header>
+
+  <main class="page-content">
+    <div id="error-container"></div>
+
+    <div class="grid-2" style="align-items:start;">
+      <!-- Upload Card -->
+      <div class="card">
+        <div class="eyebrow" style="color:var(--color-charcoal);margin-bottom:6px;">INPUT INGESTION</div>
+        <div class="card-title">
+          <i class="fas fa-upload" style="color:var(--color-signal-red);"></i> Ingest ECG Waveform
+        </div>
+        <div class="card-sub">
+          Single or multi-lead CSV time-series &middot; 360 Hz sampling recommended for standard MIT-BIH alignment.
+        </div>
+
+        <!-- Patient Selection -->
+        <div style="margin-bottom:24px;">
+          <label for="patientSelect">
+            Associate with Patient Profile <span class="tag" style="margin-left:6px;">Optional</span>
+          </label>
+          
+          <div id="preselected-banner" style="display:none;padding:10px 14px;background:var(--color-linen);border:1px solid var(--color-mist);border-radius:var(--radius-buttons);margin-bottom:12px;display:flex;align-items:center;gap:10px;">
+            <i class="fas fa-user-check" style="color:var(--color-signal-red);"></i>
+            <span style="font-size:0.875rem;color:var(--color-ink);font-weight:500;">
+              Linked to: <strong id="preselected-name"></strong>
+            </span>
+          </div>
+
+          <select id="patientSelect" onchange="onPatientChange(this)">
+            <option value="">— Unassigned (Ad-hoc Analysis) —</option>
+          </select>
+
+          <div id="patientBadge" style="display:none;margin-top:10px;padding:8px 12px;background:var(--color-linen);border:1px solid var(--color-mist);border-radius:var(--radius-buttons);font-size:0.82rem;color:var(--color-ink);">
+            <i class="fas fa-link" style="color:var(--color-signal-red);margin-right:6px;"></i><span id="patientBadgeText"></span>
+          </div>
+        </div>
+
+        <!-- Drop Zone -->
+        <label for="csvFile" style="cursor:pointer;margin-bottom:0;">
+          <div class="upload-zone" id="dropZone">
+            <div class="upload-icon"><i class="fas fa-file-waveform"></i></div>
+            <h3>Drop ECG CSV file here</h3>
+            <p>or click to select from local storage</p>
+            <p style="margin-top:10px;" id="file-name-display"></p>
+          </div>
+        </label>
+        <input type="file" id="csvFile" accept=".csv" onchange="onFileChange(this)" style="display:none;"/>
+
+        <div class="btn-row" style="margin-top:24px;">
+          <button class="btn btn-primary btn-pill btn-lg" onclick="runAnalysis(false)">
+            <i class="fas fa-play"></i> Run Diagnostic Inference
+          </button>
+          <button class="btn btn-outline btn-pill" onclick="runAnalysis(true)">
+            <i class="fas fa-flask"></i> Load Demo Sample
+          </button>
+        </div>
+      </div>
+
+      <!-- Info Panels -->
+      <div style="display:flex;flex-direction:column;gap:20px;">
+        <div class="card">
+          <div class="eyebrow" style="color:var(--color-charcoal);margin-bottom:6px;">SPECIFICATION</div>
+          <div class="card-title">
+            <i class="fas fa-circle-info" style="color:var(--color-charcoal);"></i> Expected Schema
+          </div>
+          <div class="card-sub">Standard tabular time-series structure</div>
+          
+          <pre style="background:var(--color-linen);border:1px solid var(--color-mist);border-radius:var(--radius-buttons);padding:14px;font-family:monospace;font-size:0.82rem;color:var(--color-ink);overflow-x:auto;">time,signal
+0.0000,-0.01449
+0.0028,-0.02091
+0.0056,-0.03079
+0.0083,-0.01030
+...</pre>
+
+          <div style="margin-top:14px;font-size:0.82rem;color:var(--color-charcoal);line-height:1.6;">
+            <strong>Recommended configuration:</strong> Lead II / MLII recording sampled at 360 Hz. Minimum of 10 consecutive seconds ensures statistical significance for rhythm variability calculations.
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="eyebrow" style="color:var(--color-charcoal);margin-bottom:6px;">MODEL PIPELINE</div>
+          <div class="card-title">
+            <i class="fas fa-microchip" style="color:var(--color-charcoal);"></i> Calibrated Classification Architecture
+          </div>
+          <div class="card-sub">Dual-stage signal processing and morphological classification</div>
+          
+          <div style="display:flex;flex-direction:column;gap:12px;margin-top:10px;">
+            <div style="display:flex;align-items:flex-start;gap:12px;">
+              <span class="badge badge-low" style="margin-top:2px;">Stage 1</span>
+              <div>
+                <strong style="font-size:0.875rem;color:var(--color-ink);">R-Peak Local-Adaptive Detection</strong>
+                <p style="font-size:0.8rem;color:var(--color-charcoal);margin-top:2px;line-height:1.4;">
+                  Butterworth bandpass (0.5–40 Hz) removes baseline drift; sliding-window thresholding locates beats even in fluctuating signals.
+                </p>
+              </div>
+            </div>
+            <div style="display:flex;align-items:flex-start;gap:12px;">
+              <span class="badge badge-moderate" style="margin-top:2px;">Stage 2</span>
+              <div>
+                <strong style="font-size:0.875rem;color:var(--color-ink);">Beat &amp; Arrhythmia Ensemble</strong>
+                <p style="font-size:0.8rem;color:var(--color-charcoal);margin-top:2px;line-height:1.4;">
+                  Z-score normalized 200-sample windows evaluated via Gradient Boosted &amp; Random Forest ensemble calibrated on MIT-BIH benchmarks.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loader">
+  <div class="spinner"></div>
+  <div style="font-family:var(--font-inter);font-size:1.1rem;font-weight:600;color:var(--color-ink);margin-bottom:6px;">Analyzing ECG Trace</div>
+  <div style="font-size:0.875rem;color:var(--color-charcoal);">Executing peak extraction, cycle segmentation, and ensemble inference...</div>
+</div>
+
+<script>
+let selectedFile = null;
+const urlParams = new URLSearchParams(window.location.search);
+const targetPatientId = urlParams.get('patient_id');
+
+// Load Patients into Dropdown
+async function loadPatients() {
+  try {
+    const res = await fetch(window.getApiUrl('/api/patients'));
+    if (!res.ok) return;
+    const data = await res.json();
+    const select = document.getElementById('patientSelect');
+    if (data.patients && data.patients.length) {
+      data.patients.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = `${p.full_name} (Record #${p.id.slice(0, 8)})`;
+        if (targetPatientId && targetPatientId === p.id) {
+          opt.selected = true;
+          document.getElementById('preselected-banner').style.display = 'flex';
+          document.getElementById('preselected-name').textContent = p.full_name;
+        }
+        select.appendChild(opt);
+      });
+      if (select.value) onPatientChange(select);
+    }
+  } catch(e) {
+    console.warn('Patients load error:', e);
+  }
+}
+
+function onPatientChange(sel) {
+  const badge = document.getElementById('patientBadge');
+  const text  = document.getElementById('patientBadgeText');
+  if (sel.value) {
+    const name = sel.options[sel.selectedIndex].text;
+    text.textContent = 'Target Profile: ' + name;
+    badge.style.display = 'block';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function onFileChange(input) {
+  selectedFile = input.files[0];
+  const el = document.getElementById('file-name-display');
+  if (selectedFile) {
+    el.innerHTML = `<span style="color:var(--color-signal-red);font-weight:600;font-size:0.85rem;"><i class="fas fa-file-csv"></i> ${selectedFile.name}</span>`;
+    document.getElementById('dropZone').style.borderColor = 'var(--color-signal-red)';
+  }
+}
+
+const dz = document.getElementById('dropZone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault();
+  dz.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f) {
+    document.getElementById('csvFile').files = e.dataTransfer.files;
+    onFileChange({ files: [f] });
+  }
+});
+
+async function runAnalysis(useSample) {
+  const errBox = document.getElementById('error-container');
+  errBox.innerHTML = '';
+  document.getElementById('loader').classList.add('show');
+  
+  const fd = new FormData();
+  if (!useSample && selectedFile) {
+    fd.append('file', selectedFile);
+  }
+  
+  const patientId = document.getElementById('patientSelect').value;
+  if (patientId) {
+    fd.append('patient_id', patientId);
+  }
+  
+  try {
+    const res = await fetch(window.getApiUrl('/predict'), { method: 'POST', body: fd });
+    const json = await res.json();
+    document.getElementById('loader').classList.remove('show');
+    
+    if (json.status === 'ok') {
+      sessionStorage.setItem('ecg_result', JSON.stringify(json.data));
+      sessionStorage.setItem('ecg_result_id', json.result_id);
+      window.location.href = 'results.html?id=' + encodeURIComponent(json.result_id);
+    } else {
+      errBox.innerHTML = `
+        <div class="alert alert-error">
+          <i class="fas fa-circle-exclamation"></i>
+          <div><strong>Analysis Error:</strong> ${json.message || 'Server error occurred'}</div>
+        </div>`;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  } catch(e) {
+    document.getElementById('loader').classList.remove('show');
+    errBox.innerHTML = `
+      <div class="alert alert-error">
+        <i class="fas fa-circle-exclamation"></i>
+        <div><strong>Connection Error:</strong> Could not connect to backend at <code>${window.API_BASE_URL}</code>. If using Render free-tier, please wait 30-50s for it to wake up or click the status pill in the bottom-left to adjust the URL. (${e.message})</div>
+      </div>`;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadPatients();
+  if (urlParams.get('sample') === '1') {
+    setTimeout(() => runAnalysis(true), 500);
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Results — CardioAI Intelligence</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <link rel="stylesheet" href="css/style.css"/>
+  <script src="js/config.js"></script>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-icon"><i class="fas fa-heart-pulse"></i></div>
+    <div>
+      <div class="brand-name">CardioAI</div>
+      <div class="brand-sub">Rhythm Intelligence</div>
+    </div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">WORKSPACE</div>
+    <a href="index.html" class="nav-item">
+      <i class="fas fa-chart-line"></i><span>Dashboard</span>
+    </a>
+    <a href="analyze.html" class="nav-item">
+      <i class="fas fa-upload"></i><span>Analyze ECG</span>
+    </a>
+    <a href="results.html" class="nav-item active">
+      <i class="fas fa-microscope"></i><span>Results</span>
+    </a>
+    <a href="report.html" class="nav-item">
+      <i class="fas fa-file-medical"></i><span>Clinical Report</span>
+    </a>
+    
+    <div class="nav-section-label" style="margin-top:22px;">PATIENTS</div>
+    <a href="patients.html" class="nav-item">
+      <i class="fas fa-users"></i><span>Patient Directory</span>
+    </a>
+    <a href="add_patient.html" class="nav-item">
+      <i class="fas fa-user-plus"></i><span>Enroll Patient</span>
+    </a>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div id="backend-status-badge" class="model-badge" title="Click to configure backend API URL">
+      <span id="backend-status-dot" style="width:7px;height:7px;border-radius:50%;background:#f59e0b;display:inline-block;"></span>
+      <span id="backend-status-text">Connecting...</span>
+    </div>
+  </div>
+</aside>
+
+<div class="main-wrap">
+  <header class="topbar">
+    <div class="topbar-left">
+      <h2 class="page-title">Diagnostic Results</h2>
+      <span class="page-sub" id="header-meta">Analyzing waveform telemetry...</span>
+    </div>
+    <div class="topbar-right">
+      <div class="topbar-badge"><i class="fas fa-shield-heart"></i> MIT-BIH Standard</div>
+      <div class="topbar-badge"><i class="fas fa-bolt"></i> 360 Hz Real-Time</div>
+    </div>
+  </header>
+
+  <main class="page-content" id="results-container">
+    <!-- Empty state loader / fallback -->
+    <div id="empty-state" class="card" style="display:none;text-align:center;padding:48px 24px;">
+      <i class="fas fa-wave-square" style="font-size:3rem;color:var(--color-mist);margin-bottom:16px;"></i>
+      <h3 style="font-size:1.25rem;color:var(--color-ink);margin-bottom:8px;">No Active Analysis Found</h3>
+      <p style="color:var(--color-charcoal);max-width:480px;margin:0 auto 24px auto;line-height:1.5;">
+        Upload an ECG recording or load a calibrated MIT-BIH benchmark sample to view rhythm diagnostics.
+      </p>
+      <div class="btn-row" style="justify-content:center;">
+        <a href="analyze.html" class="btn btn-primary btn-pill"><i class="fas fa-upload"></i> Analyze ECG File</a>
+        <a href="analyze.html?sample=1" class="btn btn-outline btn-pill"><i class="fas fa-flask"></i> Load Demo Sample</a>
+      </div>
+    </div>
+
+    <!-- Live Content Container (populated dynamically) -->
+    <div id="content-view" style="display:none;"></div>
+  </main>
+</div>
+
+<script>
+async function loadResultsData() {
+  const params = new URLSearchParams(window.location.search);
+  const resultId = params.get('id') || sessionStorage.getItem('ecg_result_id');
+  let data = null;
+
+  if (sessionStorage.getItem('ecg_result')) {
+    try {
+      data = JSON.parse(sessionStorage.getItem('ecg_result'));
+    } catch(e) {
+      console.warn('Session parse error:', e);
+    }
+  }
+
+  // If no session data but we have resultId, fetch from API
+  if (!data && resultId) {
+    try {
+      const res = await fetch(window.getApiUrl(`/api/results/${resultId}`));
+      if (res.ok) {
+        const json = await res.json();
+        if (json.status === 'ok') {
+          data = json.data;
+          sessionStorage.setItem('ecg_result', JSON.stringify(data));
+          sessionStorage.setItem('ecg_result_id', resultId);
+        }
+      }
+    } catch(e) {
+      console.warn('Fetch result error:', e);
+    }
+  }
+
+  if (!data) {
+    document.getElementById('empty-state').style.display = 'block';
+    return;
+  }
+
+  renderResults(data, resultId);
+}
+
+function renderResults(data, resultId) {
+  document.getElementById('header-meta').textContent = `${data.filename} · ${data.timestamp}`;
+  const cv = document.getElementById('content-view');
+  cv.style.display = 'block';
+
+  const riskLower = (data.risk_level || 'low').toLowerCase();
+  const primary = data.primary || {};
+  const recovery = data.recovery;
+
+  let html = '';
+
+  // Short warning
+  if (data.short_warning) {
+    html += `
+    <div class="alert alert-info" style="border-left: 4px solid var(--color-warning);margin-bottom:24px;">
+      <i class="fas fa-triangle-exclamation" style="color:var(--color-warning);font-size:1.1rem;"></i>
+      <div>
+        <strong>Short Recording Duration (${data.recording_secs}s):</strong> Reliable arrhythmia pattern detection requires at least 10 seconds of continuous data. Only ${data.total_beats} cardiac cycle(s) were analyzed. Consider collecting a longer strip.
+      </div>
+    </div>`;
+  }
+
+  // Primary Diagnosis
+  if (primary && primary.name) {
+    const pSev = primary.severity || 'Normal';
+    const pColor = pSev === 'High' ? 'var(--color-signal-red)' : (pSev === 'Moderate' ? 'var(--color-warning)' : 'var(--color-ink)');
+    const pIcon = pSev === 'High' ? 'fa-triangle-exclamation' : (pSev === 'Moderate' ? 'fa-circle-exclamation' : 'fa-circle-check');
+    const badgeClass = pSev === 'High' ? 'badge-high' : (pSev === 'Moderate' ? 'badge-moderate' : 'badge-low');
+
+    html += `
+    <div class="card section-gap" style="border-left: 4px solid ${pColor};">
+      <div style="display:flex;align-items:flex-start;gap:20px;">
+        <div style="width:48px;height:48px;border-radius:12px;background:var(--color-linen);border:1px solid var(--color-mist);color:${pColor};display:flex;align-items:center;justify-content:center;font-size:1.4rem;flex-shrink:0;">
+          <i class="fas ${pIcon}"></i>
+        </div>
+        <div style="flex:1;">
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px;">
+            <span style="font-family:var(--font-inter);font-size:1.25rem;font-weight:500;color:var(--color-ink);">${primary.name}</span>
+            <span class="badge ${badgeClass}">${pSev} Severity</span>
+            ${primary.confidence ? `<span style="font-size:0.8rem;color:var(--color-charcoal);font-family:var(--font-mdio);">${primary.confidence}% Confidence</span>` : ''}
+          </div>
+          <p style="font-size:0.9rem;color:var(--color-charcoal);margin-bottom:12px;line-height:1.5;">${primary.description || ''}</p>
+          <div style="background:var(--color-linen);border:1px solid var(--color-mist);border-radius:var(--radius-buttons);padding:12px 16px;font-size:0.85rem;color:var(--color-ink);line-height:1.5;">
+            <i class="fas fa-stethoscope" style="color:var(--color-signal-red);margin-right:8px;"></i><strong>Clinical Recommendation:</strong> ${primary.advice || 'Continue routine cardiac monitoring.'}
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  // Risk Banner
+  html += `
+  <div class="risk-banner ${riskLower}">
+    <div class="risk-icon">
+      <i class="fas ${riskLower === 'high' ? 'fa-triangle-exclamation' : (riskLower === 'moderate' ? 'fa-circle-exclamation' : 'fa-circle-check')}"></i>
+    </div>
+    <div>
+      <div class="risk-title">
+        Diagnostic Stratification: ${data.risk_level} Risk
+        <span class="badge badge-${riskLower}" style="margin-left:8px;">${data.risk_score}% Ventricular Ectopy</span>
+      </div>
+      <div class="risk-desc">
+        Dominant rhythm pattern: <strong>${data.dominant}</strong> (${data.dominant_label}) &middot; ${data.total_beats} cycles evaluated across ${data.duration}s window
+      </div>
+    </div>
+    <div style="margin-left:auto;display:flex;gap:10px;flex-wrap:wrap;">
+      <a href="report.html${resultId ? '?id=' + encodeURIComponent(resultId) : ''}" class="btn btn-primary btn-pill"><i class="fas fa-file-medical"></i> Generate Report</a>
+      <a href="analyze.html" class="btn btn-outline btn-pill"><i class="fas fa-redo"></i> New Run</a>
+    </div>
+  </div>`;
+
+  // Primary Stats Grid
+  const hrv = data.hrv || {};
+  html += `
+  <div class="stats-grid section-gap">
+    <div class="stat-card">
+      <div class="stat-icon"><i class="fas fa-heart-pulse"></i></div>
+      <div>
+        <div class="stat-val">${hrv.hr || 0}</div>
+        <div class="stat-lbl">Heart Rate (bpm)</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon"><i class="fas fa-wave-square"></i></div>
+      <div>
+        <div class="stat-val">${data.total_beats || 0}</div>
+        <div class="stat-lbl">Total Beats</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon"><i class="fas fa-arrows-left-right"></i></div>
+      <div>
+        <div class="stat-val">${hrv.mean_rr || 0}</div>
+        <div class="stat-lbl">Mean RR (ms)</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon"><i class="fas fa-chart-line"></i></div>
+      <div>
+        <div class="stat-val">${hrv.sdnn || 0}</div>
+        <div class="stat-lbl">SDNN — HRV (ms)</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon"><i class="fas fa-bolt"></i></div>
+      <div>
+        <div class="stat-val">${hrv.rmssd || 0}</div>
+        <div class="stat-lbl">RMSSD (ms)</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon"><i class="fas fa-clock"></i></div>
+      <div>
+        <div class="stat-val">${data.duration || 0}<span style="font-size:1.1rem;color:var(--color-charcoal);font-weight:400;">s</span></div>
+        <div class="stat-lbl">Strip Duration</div>
+      </div>
+    </div>
+  </div>`;
+
+  // Recovery Trajectory Card
+  if (recovery) {
+    const cat = recovery.category || { label: 'Moderate', icon: 'fa-clock' };
+    const recBorder = cat.label === 'Fast' ? 'var(--color-success)' : (cat.label === 'Moderate' ? 'var(--color-warning)' : 'var(--color-signal-red)');
+    const recBadge = cat.label === 'Fast' ? 'badge-low' : (cat.label === 'Moderate' ? 'badge-moderate' : 'badge-high');
+
+    html += `
+    <div class="card section-gap" style="border-left:4px solid ${recBorder};">
+      <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
+        <div style="width:54px;height:54px;border-radius:12px;background:var(--color-linen);border:1px solid var(--color-mist);display:flex;align-items:center;justify-content:center;font-size:1.5rem;color:var(--color-ink);flex-shrink:0;">
+          <i class="fas ${cat.icon || 'fa-clock'}"></i>
+        </div>
+        <div style="flex:1;">
+          <div class="eyebrow" style="color:var(--color-charcoal);margin-bottom:4px;">ESTIMATED RECOVERY WINDOW</div>
+          <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
+            <span style="font-family:var(--font-inter);font-size:2.2rem;font-weight:var(--font-weight-light);color:var(--color-ink);line-height:1;">${recovery.days_rounded || recovery.days || 1}</span>
+            <span style="font-size:1rem;color:var(--color-charcoal);font-weight:500;">days</span>
+            <span class="badge ${recBadge}">${cat.label} Recovery Track</span>
+            <span style="font-size:0.8rem;color:var(--color-charcoal);">${recovery.risk_level || data.risk_level} risk &middot; ${recovery.primary_type || 'NSR'}</span>
+          </div>
+          <div style="font-size:0.85rem;color:var(--color-charcoal);margin-top:6px;">
+            ${cat.label === 'Fast' ? 'Typically resolves within standard care timeline with clinical stability.' : (cat.label === 'Moderate' ? 'Requires therapeutic monitoring and pharmacological titration.' : 'Specialist cardiac follow-up and continuous monitoring recommended.')}
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;min-width:180px;background:var(--color-linen);padding:14px;border-radius:var(--radius-buttons);border:1px solid var(--color-mist);">
+          <div class="eyebrow" style="color:var(--color-charcoal);font-size:10px;">RECOVERY BENCHMARK</div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:0.78rem;">
+            <span style="width:8px;height:8px;border-radius:50%;background:var(--color-success);display:inline-block;"></span>
+            <span style="${cat.label === 'Fast' ? 'font-weight:700;color:var(--color-ink);' : 'color:var(--color-charcoal);'}">Fast (&lt;5 days)</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:0.78rem;">
+            <span style="width:8px;height:8px;border-radius:50%;background:var(--color-warning);display:inline-block;"></span>
+            <span style="${cat.label === 'Moderate' ? 'font-weight:700;color:var(--color-ink);' : 'color:var(--color-charcoal);'}">Moderate (5–10 days)</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:0.78rem;">
+            <span style="width:8px;height:8px;border-radius:50%;background:var(--color-signal-red);display:inline-block;"></span>
+            <span style="${cat.label === 'Slow' ? 'font-weight:700;color:var(--color-ink);' : 'color:var(--color-charcoal);'}">Extended (&gt;10 days)</span>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  // Interactive ECG Strip Card
+  html += `
+  <div class="card section-gap">
+    <div class="eyebrow" style="color:var(--color-charcoal);margin-bottom:6px;">WAVEFORM TRACE</div>
+    <div class="card-title"><i class="fas fa-wave-square" style="color:var(--color-signal-red);"></i> Interactive ECG Signal &amp; QRS Complexes</div>
+    <div class="card-sub">Rendered with calibrated 360 Hz sampling &middot; zoom and pan enabled</div>
+    
+    <div id="ecg-plotly" style="width:100%;height:300px;border-radius:var(--radius-buttons);overflow:hidden;border:1px solid var(--color-mist);"></div>
+    
+    <div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:14px;align-items:center;">
+      <div style="display:flex;align-items:center;gap:6px;font-size:0.8rem;"><div style="width:8px;height:8px;border-radius:50%;background:#181717;"></div><span class="badge badge-N">N</span><span style="color:var(--color-charcoal);font-size:0.78rem;">Normal Beat</span></div>
+      <div style="display:flex;align-items:center;gap:6px;font-size:0.8rem;"><div style="width:8px;height:8px;border-radius:50%;background:#b45309;"></div><span class="badge badge-S">S</span><span style="color:var(--color-charcoal);font-size:0.78rem;">Supraventricular Ectopic</span></div>
+      <div style="display:flex;align-items:center;gap:6px;font-size:0.8rem;"><div style="width:8px;height:8px;border-radius:50%;background:#d04841;"></div><span class="badge badge-V">V</span><span style="color:var(--color-charcoal);font-size:0.78rem;">Ventricular Ectopic</span></div>
+      <div style="display:flex;align-items:center;gap:6px;font-size:0.8rem;"><div style="width:8px;height:8px;border-radius:50%;background:#6d28d9;"></div><span class="badge badge-F">F</span><span style="color:var(--color-charcoal);font-size:0.78rem;">Fusion Beat</span></div>
+      <div style="display:flex;align-items:center;gap:6px;font-size:0.8rem;"><div style="width:8px;height:8px;border-radius:50%;background:#575555;"></div><span class="badge badge-Q">Q</span><span style="color:var(--color-charcoal);font-size:0.78rem;">Unknown / Paced</span></div>
+    </div>
+  </div>`;
+
+  // Charts Grid: Beat Proportionality & RR Tachogram
+  html += `
+  <div class="grid-2 section-gap">
+    <div class="card">
+      <div class="eyebrow" style="color:var(--color-charcoal);margin-bottom:6px;">PROPORTIONALITY</div>
+      <div class="card-title"><i class="fas fa-chart-pie" style="color:var(--color-charcoal);"></i> Beat Class Breakdown</div>
+      <div class="card-sub">Distribution of detected AAMI classes</div>
+      ${data.pie_img ? `<img src="data:image/png;base64,${data.pie_img}" class="chart-img" style="border-radius:var(--radius-buttons);border:1px solid var(--color-mist);"/>` : ''}
+      
+      <div style="margin-top:16px;display:flex;flex-direction:column;gap:10px;">`;
+  
+  if (data.beat_counts) {
+    for (const [cls, cnt] of Object.entries(data.beat_counts)) {
+      const pct = (cnt / (data.total_beats || 1) * 100).toFixed(1);
+      const barColor = cls === 'V' ? 'var(--color-signal-red)' : (cls === 'S' ? 'var(--color-warning)' : (cls === 'F' ? '#6d28d9' : 'var(--color-ink)'));
+      const label = (data.class_labels && data.class_labels[cls]) || cls;
+      html += `
+        <div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:0.85rem;">
+            <span style="font-weight:500;color:var(--color-ink);"><span class="badge badge-${cls}">${cls}</span> ${label}</span>
+            <span style="color:var(--color-charcoal);font-family:var(--font-mdio);font-size:0.78rem;">${cnt} (${pct}%)</span>
+          </div>
+          <div class="progress-bar-wrap">
+            <div class="progress-bar" style="width:${pct}%;background:${barColor};"></div>
+          </div>
+        </div>`;
+    }
+  }
+
+  html += `
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="eyebrow" style="color:var(--color-charcoal);margin-bottom:6px;">TIME-DOMAIN HRV</div>
+      <div class="card-title"><i class="fas fa-chart-line" style="color:var(--color-charcoal);"></i> RR Tachogram Dynamics</div>
+      <div class="card-sub">Cycle-to-cycle variability representation</div>
+      ${data.rr_img ? `<img src="data:image/png;base64,${data.rr_img}" class="chart-img" style="border-radius:var(--radius-buttons);border:1px solid var(--color-mist);"/>` : ''}
+      
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px;">
+        <div style="background:var(--color-linen);border-radius:var(--radius-buttons);padding:12px 14px;border:1px solid var(--color-mist);">
+          <div class="eyebrow" style="color:var(--color-charcoal);font-size:10px;">Mean RR</div>
+          <div style="font-family:var(--font-inter);font-size:1.25rem;font-weight:var(--font-weight-light);color:var(--color-ink);margin-top:2px;">${hrv.mean_rr || 0} ms</div>
+        </div>
+        <div style="background:var(--color-linen);border-radius:var(--radius-buttons);padding:12px 14px;border:1px solid var(--color-mist);">
+          <div class="eyebrow" style="color:var(--color-charcoal);font-size:10px;">SDNN</div>
+          <div style="font-family:var(--font-inter);font-size:1.25rem;font-weight:var(--font-weight-light);color:var(--color-ink);margin-top:2px;">${hrv.sdnn || 0} ms</div>
+        </div>
+        <div style="background:var(--color-linen);border-radius:var(--radius-buttons);padding:12px 14px;border:1px solid var(--color-mist);">
+          <div class="eyebrow" style="color:var(--color-charcoal);font-size:10px;">RMSSD</div>
+          <div style="font-family:var(--font-inter);font-size:1.25rem;font-weight:var(--font-weight-light);color:var(--color-ink);margin-top:2px;">${hrv.rmssd || 0} ms</div>
+        </div>
+        <div style="background:var(--color-linen);border-radius:var(--radius-buttons);padding:12px 14px;border:1px solid var(--color-mist);">
+          <div class="eyebrow" style="color:var(--color-charcoal);font-size:10px;">Heart Rate</div>
+          <div style="font-family:var(--font-inter);font-size:1.25rem;font-weight:var(--font-weight-light);color:var(--color-ink);margin-top:2px;">${hrv.hr || 0} bpm</div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+
+  // Morphology Heatmap
+  if (data.heat_img) {
+    html += `
+    <div class="card section-gap">
+      <div class="eyebrow" style="color:var(--color-charcoal);margin-bottom:6px;">MORPHOLOGICAL DECOMPOSITION</div>
+      <div class="card-title"><i class="fas fa-layer-group" style="color:var(--color-signal-red);"></i> Multi-Panel Beat Morphology Matrix</div>
+      <div class="card-sub">Superimposed cycles &middot; Amplitude density heatmap &middot; Euclidean distance anomaly curve</div>
+      <img src="data:image/png;base64,${data.heat_img}" class="chart-img" style="margin-top:8px;border-radius:var(--radius-buttons);border:1px solid var(--color-mist);"/>
+    </div>`;
+  }
+
+  // Doctor in the loop correction card
+  html += `
+  <div class="card section-gap">
+    <div class="eyebrow" style="color:var(--color-charcoal);margin-bottom:6px;">HUMAN-IN-THE-LOOP FEEDBACK</div>
+    <div class="card-title"><i class="fas fa-user-doctor" style="color:var(--color-signal-red);"></i> Clinician Diagnostic Override / Audit</div>
+    <div class="card-sub">Override or confirm the AI diagnosis to contribute to continuous audit benchmarks</div>
+    
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:14px;">
+      <input type="text" id="doc-correction-input" placeholder="e.g. Paroxysmal AFib with RVR, Benign PACs..." style="flex:1;min-width:240px;padding:10px 14px;border:1px solid var(--color-mist);border-radius:var(--radius-buttons);font-size:0.875rem;">
+      <button class="btn btn-outline btn-pill" onclick="submitCorrection('${primary.name || 'AI Analysis'}')">
+        <i class="fas fa-check"></i> Submit Clinical Override
+      </button>
+    </div>
+    <div id="correction-status" style="margin-top:10px;font-size:0.82rem;display:none;"></div>
+  </div>`;
+
+  // Cycle Table
+  if (data.peaks && data.peaks.length) {
+    const riskMap = { 'N': 'Low', 'S': 'Moderate', 'V': 'High', 'F': 'Moderate', 'Q': 'Low' };
+    html += `
+    <div class="card section-gap">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
+        <div>
+          <div class="eyebrow" style="color:var(--color-charcoal);margin-bottom:4px;">AUDIT TRAIL</div>
+          <div class="card-title"><i class="fas fa-table" style="color:var(--color-charcoal);"></i> Cycle-by-Cycle Classification</div>
+          <div class="card-sub" style="margin-bottom:0;">Full record of ${data.total_beats} segmented cardiac beats</div>
+        </div>
+        <a href="report.html${resultId ? '?id=' + encodeURIComponent(resultId) : ''}" class="btn btn-primary btn-pill">
+          <i class="fas fa-file-pdf"></i> Generate PDF Report
+        </a>
+      </div>
+      
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Sample Index</th>
+              <th>Time (s)</th>
+              <th>AAMI Class</th>
+              <th>Morphology</th>
+              <th>Confidence</th>
+              <th>Risk Category</th>
+            </tr>
+          </thead>
+          <tbody>`;
+
+    data.peaks.forEach((peak, i) => {
+      const cls = data.predictions ? data.predictions[i] : 'N';
+      const conf = data.confidences ? data.confidences[i] : 90;
+      const risk = riskMap[cls] || 'Low';
+      const peakTime = (data.time && peak < data.time.length) ? data.time[peak].toFixed(3) : (peak / (data.input_fs || 360)).toFixed(3);
+      const label = (data.class_labels && data.class_labels[cls]) || cls;
+
+      html += `
+        <tr>
+          <td style="color:var(--color-charcoal);font-family:var(--font-mdio);font-size:0.75rem;">${i+1}</td>
+          <td style="font-family:monospace;font-size:0.8rem;">${peak}</td>
+          <td>${peakTime}s</td>
+          <td><span class="badge badge-${cls}">${cls}</span></td>
+          <td style="font-size:0.85rem;font-weight:500;">${label}</td>
+          <td>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div class="progress-bar-wrap" style="width:64px;">
+                <div class="progress-bar" style="width:${conf}%;background:${cls === 'V' ? 'var(--color-signal-red)' : (cls === 'S' ? 'var(--color-warning)' : 'var(--color-ink)')};"></div>
+              </div>
+              <span style="font-family:var(--font-mdio);font-size:0.78rem;">${conf}%</span>
+            </div>
+          </td>
+          <td><span class="badge badge-${risk.toLowerCase()}">${risk}</span></td>
+        </tr>`;
+    });
+
+    html += `
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+  }
+
+  cv.innerHTML = html;
+
+  // Initialize Plotly Strip Chart
+  if (data.time && data.signal && data.peaks) {
+    initPlotlyChart(data);
+  }
+}
+
+function initPlotlyChart(data) {
+  const peakX = data.peaks.map(i => data.time[i]);
+  const peakY = data.peaks.map(i => data.signal[i]);
+  const markerColorMap = {
+    'N': '#181717', 'S': '#b45309', 'V': '#d04841', 'F': '#6d28d9', 'Q': '#575555'
+  };
+  const markerColors = (data.predictions || []).map(p => markerColorMap[p] || '#181717');
+
+  Plotly.newPlot('ecg-plotly', [
+    { 
+      x: data.time, 
+      y: data.signal, 
+      type: 'scatter', 
+      mode: 'lines',
+      line: { color: '#5a82de', width: 1.2 }, 
+      name: 'ECG Signal (MLII)' 
+    },
+    { 
+      x: peakX, 
+      y: peakY, 
+      type: 'scatter', 
+      mode: 'markers',
+      marker: { color: markerColors, size: 8, line: { color: '#ffffff', width: 1.5 } },
+      name: 'Segmented Beats',
+      text: (data.predictions || []).map((p, i) => `${p} (${data.confidences ? data.confidences[i] : 90}%)`),
+      hovertemplate: '<b>%{text}</b><br>Time: %{x:.3f}s<extra></extra>' 
+    }
+  ], {
+    paper_bgcolor: '#ffffff',
+    plot_bgcolor: '#f7f5f4',
+    font: { family: 'Inter, sans-serif', color: '#181717', size: 11 },
+    xaxis: { 
+      title: 'Time (seconds)', 
+      gridcolor: '#eeebea', 
+      linecolor: '#d5d3d2',
+      color: '#575555' 
+    },
+    yaxis: { 
+      title: 'Potential (mV)', 
+      gridcolor: '#eeebea', 
+      linecolor: '#d5d3d2',
+      color: '#575555' 
+    },
+    margin: { t: 15, r: 15, b: 42, l: 55 },
+    legend: { 
+      bgcolor: '#ffffff', 
+      bordercolor: '#d5d3d2', 
+      borderwidth: 1, 
+      orientation: 'h', 
+      y: -0.22 
+    }
+  }, { responsive: true });
+}
+
+async function submitCorrection(aiPred) {
+  const input = document.getElementById('doc-correction-input');
+  const status = document.getElementById('correction-status');
+  const val = input.value.trim();
+  if (!val) {
+    alert('Please enter a clinical diagnostic correction.');
+    return;
+  }
+  
+  const rid = new URLSearchParams(window.location.search).get('id') || sessionStorage.getItem('ecg_result_id');
+  try {
+    const res = await fetch(window.getApiUrl('/api/correct'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ai_prediction: aiPred, doctor_correction: val, result_id: rid })
+    });
+    const json = await res.json();
+    if (json.status === 'ok') {
+      status.style.display = 'block';
+      status.style.color = 'var(--color-success)';
+      status.innerHTML = `<i class="fas fa-check-circle"></i> Diagnostic override recorded: <strong>${json.doctor_correction}</strong>`;
+      input.value = '';
+    }
+  } catch(e) {
+    alert('Failed to submit correction: ' + e.message);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', loadResultsData);
+</script>
+</body>
+</html>

@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Patient Directory — CardioAI Intelligence</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <link rel="stylesheet" href="css/style.css"/>
+  <script src="js/config.js"></script>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-icon"><i class="fas fa-heart-pulse"></i></div>
+    <div>
+      <div class="brand-name">CardioAI</div>
+      <div class="brand-sub">Rhythm Intelligence</div>
+    </div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">WORKSPACE</div>
+    <a href="index.html" class="nav-item">
+      <i class="fas fa-chart-line"></i><span>Dashboard</span>
+    </a>
+    <a href="analyze.html" class="nav-item">
+      <i class="fas fa-upload"></i><span>Analyze ECG</span>
+    </a>
+    <a href="results.html" class="nav-item">
+      <i class="fas fa-microscope"></i><span>Results</span>
+    </a>
+    <a href="report.html" class="nav-item">
+      <i class="fas fa-file-medical"></i><span>Clinical Report</span>
+    </a>
+    
+    <div class="nav-section-label" style="margin-top:22px;">PATIENTS</div>
+    <a href="patients.html" class="nav-item active">
+      <i class="fas fa-users"></i><span>Patient Directory</span>
+    </a>
+    <a href="add_patient.html" class="nav-item">
+      <i class="fas fa-user-plus"></i><span>Enroll Patient</span>
+    </a>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div id="backend-status-badge" class="model-badge" title="Click to configure backend API URL">
+      <span id="backend-status-dot" style="width:7px;height:7px;border-radius:50%;background:#f59e0b;display:inline-block;"></span>
+      <span id="backend-status-text">Connecting...</span>
+    </div>
+  </div>
+</aside>
+
+<div class="main-wrap">
+  <header class="topbar">
+    <div class="topbar-left">
+      <h2 class="page-title">Patient Directory</h2>
+      <span class="page-sub">Manage registered subjects, longitudinal records, and diagnostic histories</span>
+    </div>
+    <div class="topbar-right">
+      <div class="topbar-badge"><i class="fas fa-shield-heart"></i> MIT-BIH Standard</div>
+      <div class="topbar-badge"><i class="fas fa-bolt"></i> 360 Hz Real-Time</div>
+    </div>
+  </header>
+
+  <main class="page-content">
+    <!-- Patient Metric Blocks -->
+    <div class="stats-grid" style="margin-bottom:28px;">
+      <div class="stat-card">
+        <div class="stat-icon"><i class="fas fa-users"></i></div>
+        <div>
+          <div class="stat-val" id="stat-total-patients">—</div>
+          <div class="stat-lbl">Enrolled Patients</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><i class="fas fa-calendar-check"></i></div>
+        <div>
+          <div class="stat-val" id="stat-recent-patients">—</div>
+          <div class="stat-lbl">Added (Past 30 Days)</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><i class="fas fa-triangle-exclamation" style="color:var(--color-signal-red);"></i></div>
+        <div>
+          <div class="stat-val" id="stat-high-risk" style="color:var(--color-signal-red);">—</div>
+          <div class="stat-lbl">High Risk Flagged</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><i class="fas fa-file-waveform"></i></div>
+        <div>
+          <div class="stat-val" id="stat-total-records">—</div>
+          <div class="stat-lbl">ECG Waveform Archives</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Search & Enrollment Toolbar -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:14px;">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        <input id="q" type="text" placeholder="Filter by patient name, pathology, or telephone..."
+               onkeyup="filterPatients()"
+               style="width:320px;padding:10px 16px;background:var(--color-paper);border:1px solid var(--color-mist);border-radius:var(--radius-buttons);font-size:0.875rem;">
+      </div>
+      <a href="add_patient.html" class="btn btn-primary btn-pill">
+        <i class="fas fa-user-plus"></i> Enroll New Patient
+      </a>
+    </div>
+
+    <!-- Patients Table Card -->
+    <div class="card" style="padding:0;overflow:hidden;">
+      <div class="table-wrap" style="border:none;box-shadow:none;border-radius:0;">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:40px;">#</th>
+              <th>Subject Name</th>
+              <th>Indication / Pathology</th>
+              <th>Telephone</th>
+              <th>Location</th>
+              <th>Latest Consultation</th>
+              <th style="text-align:center;">ECG Records</th>
+              <th style="text-align:right;">Action</th>
+            </tr>
+          </thead>
+          <tbody id="patients-tbody">
+            <tr>
+              <td colspan="8" style="text-align:center;padding:32px;color:var(--color-charcoal);">
+                <i class="fas fa-spinner fa-spin" style="margin-right:8px;"></i> Loading patient records from API...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+let allPatients = [];
+
+async function fetchPatients() {
+  try {
+    const res = await fetch(window.getApiUrl('/api/patients'));
+    if (!res.ok) throw new Error('API returned status ' + res.status);
+    const json = await res.json();
+    
+    document.getElementById('stat-total-patients').textContent = json.patients ? json.patients.length : 0;
+    document.getElementById('stat-recent-patients').textContent = json.recent_count || 0;
+    document.getElementById('stat-high-risk').textContent = json.high_risk_count || 0;
+    document.getElementById('stat-total-records').textContent = json.total_records || 0;
+
+    allPatients = json.patients || [];
+    renderPatients(allPatients);
+  } catch(e) {
+    document.getElementById('patients-tbody').innerHTML = `
+      <tr>
+        <td colspan="8" style="text-align:center;padding:32px;color:var(--color-signal-red);">
+          <i class="fas fa-circle-exclamation"></i> Could not load patients from <code>${window.API_BASE_URL}</code>.
+          <br><small style="color:var(--color-charcoal);margin-top:6px;display:inline-block;">Ensure the Render backend is live.</small>
+        </td>
+      </tr>`;
+  }
+}
+
+function renderPatients(list) {
+  const tbody = document.getElementById('patients-tbody');
+  if (!list.length) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="8" style="text-align:center;padding:32px;color:var(--color-charcoal);">
+          No patient records found. Click <strong>Enroll New Patient</strong> above to add one.
+        </td>
+      </tr>`;
+    return;
+  }
+
+  let html = '';
+  list.forEach((p, index) => {
+    const appts = p.appointments || [];
+    const latestAppt = appts.length ? appts[0].date : (p.created_at ? p.created_at.slice(0, 10) : '—');
+    const recordsCount = p.ecg_records ? p.ecg_records.length : 0;
+    const latestRec = recordsCount ? p.ecg_records[0] : null;
+    const riskTag = latestRec && latestRec.risk_level === 'High' 
+      ? '<span class="badge badge-high" style="margin-left:6px;">High</span>' 
+      : '';
+
+    html += `
+    <tr class="pr" data-text="${(p.full_name + ' ' + (p.disease || '') + ' ' + (p.mobile_no || '')).toLowerCase()}">
+      <td style="color:var(--color-charcoal);font-family:var(--font-mdio);font-size:0.75rem;">${index + 1}</td>
+      <td>
+        <a href="patient_profile.html?id=${encodeURIComponent(p.id)}" style="font-weight:600;color:var(--color-ink);text-decoration:none;display:inline-flex;align-items:center;">
+          ${p.full_name} ${riskTag}
+        </a>
+        <div style="font-size:0.75rem;color:var(--color-charcoal);font-family:monospace;">ID: ${p.id.slice(0, 8)}</div>
+      </td>
+      <td style="font-size:0.85rem;color:var(--color-charcoal);">${p.disease || '—'}</td>
+      <td style="font-family:monospace;font-size:0.8rem;color:var(--color-charcoal);">${p.mobile_no || '—'}</td>
+      <td style="font-size:0.85rem;color:var(--color-charcoal);">${p.address || '—'}</td>
+      <td style="font-size:0.8rem;color:var(--color-charcoal);">${latestAppt}</td>
+      <td style="text-align:center;">
+        <span class="badge ${recordsCount > 0 ? 'badge-low' : ''}">${recordsCount} strips</span>
+      </td>
+      <td style="text-align:right;">
+        <div class="btn-row" style="justify-content:flex-end;">
+          <a href="patient_profile.html?id=${encodeURIComponent(p.id)}" class="btn btn-outline" style="padding:4px 10px;font-size:0.75rem;">
+            View
+          </a>
+          <a href="analyze.html?patient_id=${encodeURIComponent(p.id)}" class="btn btn-primary" style="padding:4px 10px;font-size:0.75rem;">
+            + ECG
+          </a>
+        </div>
+      </td>
+    </tr>`;
+  });
+
+  tbody.innerHTML = html;
+}
+
+function filterPatients() {
+  const query = document.getElementById('q').value.toLowerCase().trim();
+  const rows = document.querySelectorAll('#patients-tbody tr.pr');
+  rows.forEach(r => {
+    const text = r.getAttribute('data-text') || '';
+    r.style.display = text.includes(query) ? '' : 'none';
+  });
+}
+
+document.addEventListener('DOMContentLoaded', fetchPatients);
+</script>
+</body>
+</html>

@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Clinical Report — CardioAI Intelligence</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <link rel="stylesheet" href="css/style.css"/>
+  <script src="js/config.js"></script>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-icon"><i class="fas fa-heart-pulse"></i></div>
+    <div>
+      <div class="brand-name">CardioAI</div>
+      <div class="brand-sub">Rhythm Intelligence</div>
+    </div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">WORKSPACE</div>
+    <a href="index.html" class="nav-item">
+      <i class="fas fa-chart-line"></i><span>Dashboard</span>
+    </a>
+    <a href="analyze.html" class="nav-item">
+      <i class="fas fa-upload"></i><span>Analyze ECG</span>
+    </a>
+    <a href="results.html" class="nav-item">
+      <i class="fas fa-microscope"></i><span>Results</span>
+    </a>
+    <a href="report.html" class="nav-item active">
+      <i class="fas fa-file-medical"></i><span>Clinical Report</span>
+    </a>
+    
+    <div class="nav-section-label" style="margin-top:22px;">PATIENTS</div>
+    <a href="patients.html" class="nav-item">
+      <i class="fas fa-users"></i><span>Patient Directory</span>
+    </a>
+    <a href="add_patient.html" class="nav-item">
+      <i class="fas fa-user-plus"></i><span>Enroll Patient</span>
+    </a>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div id="backend-status-badge" class="model-badge" title="Click to configure backend API URL">
+      <span id="backend-status-dot" style="width:7px;height:7px;border-radius:50%;background:#f59e0b;display:inline-block;"></span>
+      <span id="backend-status-text">Connecting...</span>
+    </div>
+  </div>
+</aside>
+
+<div class="main-wrap">
+  <header class="topbar">
+    <div class="topbar-left">
+      <h2 class="page-title">Clinical Diagnostic Report</h2>
+      <span class="page-sub">Structured documentation &middot; Verified clinical export</span>
+    </div>
+    <div class="topbar-right">
+      <div class="topbar-badge"><i class="fas fa-shield-heart"></i> MIT-BIH Standard</div>
+      <div class="topbar-badge"><i class="fas fa-bolt"></i> 360 Hz Real-Time</div>
+    </div>
+  </header>
+
+  <main class="page-content">
+    <!-- Action Bar -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;flex-wrap:wrap;gap:16px;">
+      <div style="font-size:0.875rem;color:var(--color-charcoal);display:flex;align-items:center;gap:10px;">
+        <span id="report-file-name"><i class="fas fa-file-csv" style="color:var(--color-signal-red);"></i> Telemetry Record</span>
+        <span style="color:var(--color-mist);">&bull;</span>
+        <span id="report-timestamp"><i class="fas fa-clock"></i> Live Session</span>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-outline btn-pill" onclick="openPatientModal()">
+          <i class="fas fa-user-pen"></i> Add / Edit Patient Info
+        </button>
+        <button class="btn btn-primary btn-pill" onclick="downloadReport()">
+          <i class="fas fa-file-pdf"></i> Download PDF
+        </button>
+        <a href="results.html" class="btn btn-outline btn-pill"><i class="fas fa-chart-line"></i> Results View</a>
+        <a href="analyze.html" class="btn btn-ghost"><i class="fas fa-redo"></i> New Analysis</a>
+      </div>
+    </div>
+
+    <!-- Patient Details Modal -->
+    <div id="patientModal" style="display:none;position:fixed;inset:0;background:rgba(24,23,23,0.45);backdrop-filter:blur(3px);z-index:1000;align-items:center;justify-content:center;">
+      <div class="card" style="width:100%;max-width:520px;padding:32px;box-shadow:var(--shadow-elevated);margin:20px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+          <div>
+            <div class="eyebrow" style="color:var(--color-charcoal);margin-bottom:4px;">METADATA ATTACHMENT</div>
+            <div style="font-family:var(--font-inter);font-size:1.15rem;font-weight:600;color:var(--color-ink);">Patient Identification</div>
+          </div>
+          <button onclick="closePatientModal()" style="background:none;border:none;cursor:pointer;font-size:1.2rem;color:var(--color-ash);padding:4px;">
+            <i class="fas fa-xmark"></i>
+          </button>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          <div>
+            <label for="pt-name">Full Legal Name <span style="color:var(--color-signal-red);">*</span></label>
+            <input id="pt-name" type="text" placeholder="e.g. Eleanor Vance"/>
+          </div>
+          <div>
+            <label for="pt-phone">Contact Phone <span style="color:var(--color-signal-red);">*</span></label>
+            <input id="pt-phone" type="tel" placeholder="e.g. +1 555 234 5678"/>
+          </div>
+          <div>
+            <label for="pt-address">Residential / Clinic Address <span style="color:var(--color-signal-red);">*</span></label>
+            <textarea id="pt-address" rows="2" placeholder="e.g. 742 Evergreen Terrace, Springfield"></textarea>
+          </div>
+          <div>
+            <label for="pt-history">Pertinent Medical History <span class="tag" style="margin-left:6px;">Optional</span></label>
+            <textarea id="pt-history" rows="3" placeholder="e.g. History of paroxysmal atrial fibrillation, hypertension, beta-blocker therapy..."></textarea>
+          </div>
+        </div>
+
+        <div id="pt-error" class="alert alert-error" style="display:none;margin-top:14px;margin-bottom:0;">
+          <i class="fas fa-circle-exclamation"></i> Full Name, Phone, and Address are required for report generation.
+        </div>
+
+        <div style="display:flex;gap:12px;margin-top:24px;">
+          <button class="btn btn-primary btn-pill" style="flex:1;" onclick="savePatientDetails()">
+            <i class="fas fa-check"></i> Apply to Report
+          </button>
+          <button class="btn btn-outline btn-pill" onclick="closePatientModal()">Dismiss</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Attached Patient Info Banner -->
+    <div id="patient-preview" class="card section-gap" style="display:none;max-width:880px;margin-left:auto;margin-right:auto;border-left:4px solid var(--color-ink);">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+        <div style="display:flex;align-items:center;gap:14px;">
+          <div style="width:40px;height:40px;border-radius:10px;background:var(--color-linen);border:1px solid var(--color-mist);color:var(--color-ink);display:flex;align-items:center;justify-content:center;font-size:1.1rem;">
+            <i class="fas fa-user"></i>
+          </div>
+          <div>
+            <div style="font-family:var(--font-inter);font-size:1.05rem;font-weight:600;color:var(--color-ink);" id="prev-name"></div>
+            <div style="font-size:0.8rem;color:var(--color-charcoal);margin-top:2px;" id="prev-contact"></div>
+          </div>
+        </div>
+        <button class="btn btn-ghost" onclick="openPatientModal()" style="font-size:0.8rem;">
+          <i class="fas fa-pencil"></i> Modify
+        </button>
+      </div>
+    </div>
+
+    <!-- Printable Clinical Report Paper Surface -->
+    <div id="report-paper-container" class="report-paper" style="max-width:880px;margin:0 auto;display:none;">
+      <!-- Content populated dynamically -->
+    </div>
+
+    <!-- Empty state fallback -->
+    <div id="report-empty" class="card" style="display:none;text-align:center;padding:48px 24px;max-width:640px;margin:40px auto;">
+      <i class="fas fa-file-medical" style="font-size:3rem;color:var(--color-mist);margin-bottom:16px;"></i>
+      <h3 style="font-size:1.25rem;color:var(--color-ink);margin-bottom:8px;">No Diagnostic Report Available</h3>
+      <p style="color:var(--color-charcoal);margin-bottom:24px;line-height:1.5;">
+        Run an ECG analysis first to generate a structured clinical diagnostic report.
+      </p>
+      <div class="btn-row" style="justify-content:center;">
+        <a href="analyze.html" class="btn btn-primary btn-pill"><i class="fas fa-upload"></i> Analyze ECG File</a>
+        <a href="analyze.html?sample=1" class="btn btn-outline btn-pill"><i class="fas fa-flask"></i> Run Demo Analysis</a>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+let currentData = null;
+let currentResultId = null;
+let patientInfo = { name: '', phone: '', address: '', history: '' };
+
+async function loadReport() {
+  const params = new URLSearchParams(window.location.search);
+  currentResultId = params.get('id') || sessionStorage.getItem('ecg_result_id');
+
+  if (sessionStorage.getItem('ecg_result')) {
+    try {
+      currentData = JSON.parse(sessionStorage.getItem('ecg_result'));
+    } catch(e) {
+      console.warn('Session parse error:', e);
+    }
+  }
+
+  if (!currentData && currentResultId) {
+    try {
+      const res = await fetch(window.getApiUrl(`/api/results/${currentResultId}`));
+      if (res.ok) {
+        const json = await res.json();
+        if (json.status === 'ok') {
+          currentData = json.data;
+        }
+      }
+    } catch(e) {
+      console.warn('Fetch report error:', e);
+    }
+  }
+
+  if (!currentData) {
+    document.getElementById('report-empty').style.display = 'block';
+    return;
+  }
+
+  renderReportPaper(currentData);
+}
+
+function renderReportPaper(d) {
+  document.getElementById('report-paper-container').style.display = 'block';
+  document.getElementById('report-file-name').innerHTML = `<i class="fas fa-file-csv" style="color:var(--color-signal-red);"></i> ${d.filename}`;
+  document.getElementById('report-timestamp').innerHTML = `<i class="fas fa-clock"></i> ${d.timestamp}`;
+
+  const hrv = d.hrv || {};
+  let html = `
+    <!-- Header -->
+    <div class="report-header">
+      <div>
+        <div class="report-title">CardioAI</div>
+        <div class="report-sub">Arrhythmia Intelligence &middot; MIT-BIH Standard &middot; AAMI Calibrated</div>
+      </div>
+      <div class="report-meta">
+        <div><strong>FILE:</strong> ${d.filename}</div>
+        <div><strong>GENERATED:</strong> ${d.timestamp}</div>
+        <div><strong>WINDOW:</strong> ${d.duration}s &middot; ${d.input_fs || 360} Hz</div>
+      </div>
+    </div>`;
+
+  // Arrhythmia Diagnoses
+  if (d.diagnoses && d.diagnoses.length) {
+    html += `
+    <div class="report-section-title">Arrhythmia Diagnosis</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">`;
+    
+    d.diagnoses.forEach(diag => {
+      const sevColor = diag.severity === 'High' ? 'var(--color-signal-red)' : (diag.severity === 'Moderate' ? 'var(--color-warning)' : 'var(--color-ink)');
+      html += `
+      <div style="background:var(--color-linen);border:1px solid var(--color-mist);border-left:4px solid ${sevColor};border-radius:var(--radius-buttons);padding:14px 16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:8px;">
+          <span style="font-family:var(--font-inter);font-size:1.05rem;font-weight:600;color:var(--color-ink);">${diag.name}</span>
+          <span class="badge ${diag.severity === 'High' ? 'badge-high' : (diag.severity === 'Moderate' ? 'badge-moderate' : 'badge-low')}">
+            ${diag.severity} Severity &middot; ${diag.confidence || 0}%
+          </span>
+        </div>
+        <p style="font-size:0.85rem;color:var(--color-charcoal);line-height:1.45;margin-bottom:8px;">${diag.description || ''}</p>
+        <div style="font-size:0.82rem;color:var(--color-ink);">
+          <strong style="color:var(--color-signal-red);"><i class="fas fa-stethoscope"></i> Clinical Guidance:</strong> ${diag.advice || ''}
+        </div>
+      </div>`;
+    });
+
+    html += `</div>`;
+  }
+
+  // Summary Metrics Table
+  html += `
+  <div class="report-section-title">Clinical Telemetry Summary</div>
+  <table class="report-table" style="margin-bottom:24px;">
+    <tbody>
+      <tr>
+        <td style="color:var(--color-charcoal);width:25%;">Dominant Rhythm</td>
+        <td style="font-weight:600;color:var(--color-ink);width:25%;">${d.dominant} — ${d.dominant_label || ''}</td>
+        <td style="color:var(--color-charcoal);width:25%;">Heart Rate</td>
+        <td style="font-weight:600;color:var(--color-ink);width:25%;">${hrv.hr || 0} bpm</td>
+      </tr>
+      <tr>
+        <td style="color:var(--color-charcoal);">Total Cardiac Cycles</td>
+        <td style="font-weight:600;color:var(--color-ink);">${d.total_beats || 0}</td>
+        <td style="color:var(--color-charcoal);">Mean RR Interval</td>
+        <td style="font-weight:600;color:var(--color-ink);">${hrv.mean_rr || 0} ms</td>
+      </tr>
+      <tr>
+        <td style="color:var(--color-charcoal);">Risk Stratification</td>
+        <td style="font-weight:600;"><span class="badge badge-${(d.risk_level || 'low').toLowerCase()}">${d.risk_level} Risk (${d.risk_score}%)</span></td>
+        <td style="color:var(--color-charcoal);">SDNN (HRV)</td>
+        <td style="font-weight:600;color:var(--color-ink);">${hrv.sdnn || 0} ms</td>
+      </tr>
+      <tr>
+        <td style="color:var(--color-charcoal);">Recording Duration</td>
+        <td style="font-weight:600;color:var(--color-ink);">${d.duration || 0} seconds</td>
+        <td style="color:var(--color-charcoal);">RMSSD</td>
+        <td style="font-weight:600;color:var(--color-ink);">${hrv.rmssd || 0} ms</td>
+      </tr>
+    </tbody>
+  </table>`;
+
+  // Beat Classification Summary Table
+  html += `
+  <div class="report-section-title">AAMI Cycle Proportions</div>
+  <table class="report-table" style="margin-bottom:24px;">
+    <thead>
+      <tr>
+        <th>Class</th>
+        <th>Classification Morphology</th>
+        <th>Cycle Count</th>
+        <th>Distribution (%)</th>
+        <th>Risk Tier</th>
+      </tr>
+    </thead>
+    <tbody>`;
+
+  if (d.beat_counts) {
+    const riskMap = { 'N': 'Low', 'S': 'Moderate', 'V': 'High', 'F': 'Moderate', 'Q': 'Low' };
+    for (const [cls, cnt] of Object.entries(d.beat_counts)) {
+      const pct = (cnt / (d.total_beats || 1) * 100).toFixed(1);
+      const label = (d.class_labels && d.class_labels[cls]) || cls;
+      const risk = riskMap[cls] || 'Low';
+      html += `
+      <tr>
+        <td><span class="badge badge-${cls}">${cls}</span></td>
+        <td style="font-weight:500;">${label}</td>
+        <td style="font-family:var(--font-mdio);">${cnt}</td>
+        <td style="font-family:var(--font-mdio);">${pct}%</td>
+        <td><span class="badge badge-${risk.toLowerCase()}">${risk}</span></td>
+      </tr>`;
+    }
+  }
+
+  html += `
+    </tbody>
+  </table>`;
+
+  // Waveform Image
+  if (d.ecg_img) {
+    html += `
+    <div class="report-section-title">ECG Lead Signal Trace (Annotated)</div>
+    <div style="margin-bottom:24px;">
+      <img src="data:image/png;base64,${d.ecg_img}" style="width:100%;border-radius:var(--radius-buttons);border:1px solid var(--color-mist);"/>
+    </div>`;
+  }
+
+  // Distribution & Tachogram Charts
+  if (d.pie_img || d.rr_img) {
+    html += `
+    <div class="report-section-title">Proportionality &amp; RR Dynamics</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;">
+      ${d.pie_img ? `<img src="data:image/png;base64,${d.pie_img}" style="width:100%;border-radius:var(--radius-buttons);border:1px solid var(--color-mist);"/>` : ''}
+      ${d.rr_img ? `<img src="data:image/png;base64,${d.rr_img}" style="width:100%;border-radius:var(--radius-buttons);border:1px solid var(--color-mist);"/>` : ''}
+    </div>`;
+  }
+
+  // Morphology Heatmap
+  if (d.heat_img) {
+    html += `
+    <div class="report-section-title">Multi-Cycle Beat Morphology Matrix</div>
+    <div style="margin-bottom:24px;">
+      <img src="data:image/png;base64,${d.heat_img}" style="width:100%;border-radius:var(--radius-buttons);border:1px solid var(--color-mist);"/>
+    </div>`;
+  }
+
+  // Disclaimer
+  html += `
+  <div style="padding:14px;background:var(--color-linen);border-radius:var(--radius-buttons);border:1px solid var(--color-mist);font-size:0.75rem;color:var(--color-charcoal);line-height:1.5;">
+    <strong>Clinical Disclaimer:</strong> This report is algorithmically compiled using an artificial intelligence ensemble calibrated against the MIT-BIH arrhythmia benchmark. This document is intended to augment clinical decision-making and is not an independent diagnostic replacement for evaluation by a qualified medical professional.
+  </div>`;
+
+  document.getElementById('report-paper-container').innerHTML = html;
+}
+
+function openPatientModal() {
+  document.getElementById('patientModal').style.display = 'flex';
+}
+
+function closePatientModal() {
+  document.getElementById('patientModal').style.display = 'none';
+}
+
+function savePatientDetails() {
+  const name = document.getElementById('pt-name').value.trim();
+  const phone = document.getElementById('pt-phone').value.trim();
+  const address = document.getElementById('pt-address').value.trim();
+  const history = document.getElementById('pt-history').value.trim();
+
+  if (!name || !phone || !address) {
+    document.getElementById('pt-error').style.display = 'block';
+    return;
+  }
+
+  document.getElementById('pt-error').style.display = 'none';
+  patientInfo = { name, phone, address, history };
+
+  document.getElementById('prev-name').textContent = name;
+  document.getElementById('prev-contact').textContent = `${phone} · ${address}`;
+  document.getElementById('patient-preview').style.display = 'block';
+
+  closePatientModal();
+}
+
+function downloadReport() {
+  if (!currentResultId) {
+    alert('No active result session found. Please run an analysis first.');
+    return;
+  }
+
+  const query = new URLSearchParams({
+    result_id: currentResultId,
+    pt_name: patientInfo.name,
+    pt_phone: patientInfo.phone,
+    pt_address: patientInfo.address,
+    pt_history: patientInfo.history,
+  });
+
+  const url = window.getApiUrl(`/download_report?${query.toString()}`);
+  window.open(url, '_blank');
+}
+
+document.addEventListener('DOMContentLoaded', loadReport);
+</script>
+</body>
+</html>

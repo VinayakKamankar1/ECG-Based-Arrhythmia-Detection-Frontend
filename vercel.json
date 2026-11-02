@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "rewrites": [
+    { "source": "/analyze", "destination": "/analyze.html" },
+    { "source": "/results", "destination": "/results.html" },
+    { "source": "/report", "destination": "/report.html" },
+    { "source": "/patients", "destination": "/patients.html" },
+    { "source": "/patients/add", "destination": "/add_patient.html" },
+    { "source": "/patients/:id", "destination": "/patient_profile.html?id=:id" },
+    { "source": "/add_patient", "destination": "/add_patient.html" },
+    { "source": "/patient_profile", "destination": "/patient_profile.html" }
+  ]
+}
