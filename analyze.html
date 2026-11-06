@@ -113,9 +113,16 @@
             <p style="margin-top:10px;" id="file-name-display"></p>
           </div>
         </label>
-        <input type="file" id="csvFile" accept=".csv" onchange="onFileChange(this)" style="display:none;"/>
+        <input type="file" id="csvFile" accept=".csv,.txt" onchange="onFileChange(this)" style="display:none;"/>
 
-        <div class="btn-row" style="margin-top:24px;">
+        <div style="margin-top:10px;font-size:0.82rem;color:var(--color-charcoal);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+          <span><i class="fas fa-info-circle"></i> Accepts <code>.csv</code> time-series signals</span>
+          <a id="sample-download-link" href="#" style="color:var(--color-signal-red);text-decoration:none;font-weight:500;">
+            <i class="fas fa-download"></i> Download sample_ecg.csv
+          </a>
+        </div>
+
+        <div class="btn-row" style="margin-top:20px;">
           <button class="btn btn-primary btn-pill btn-lg" onclick="runAnalysis(false)">
             <i class="fas fa-play"></i> Run Diagnostic Inference
           </button>
@@ -230,12 +237,29 @@ function onPatientChange(sel) {
 }
 
 function onFileChange(input) {
-  selectedFile = input.files[0];
+  const file = input.files ? input.files[0] : null;
   const el = document.getElementById('file-name-display');
-  if (selectedFile) {
-    el.innerHTML = `<span style="color:var(--color-signal-red);font-weight:600;font-size:0.85rem;"><i class="fas fa-file-csv"></i> ${selectedFile.name}</span>`;
+  const errBox = document.getElementById('error-container');
+  if (!file) return;
+
+  const fname = file.name.toLowerCase();
+  if (!fname.endsWith('.csv') && !fname.endsWith('.txt')) {
+    selectedFile = null;
+    if (input.files) input.value = '';
+    el.innerHTML = `<span style="color:var(--color-signal-red);font-size:0.85rem;"><i class="fas fa-triangle-exclamation"></i> "${file.name}" is not a CSV. Only .csv files containing ECG voltage data can be analyzed.</span>`;
     document.getElementById('dropZone').style.borderColor = 'var(--color-signal-red)';
+    errBox.innerHTML = `
+      <div class="alert alert-error">
+        <i class="fas fa-circle-exclamation"></i>
+        <div><strong>Unsupported File:</strong> You selected a non-CSV document (<code>${file.name}</code>). Please upload an ECG time-series CSV file or click <strong>Load Demo Sample</strong>.</div>
+      </div>`;
+    return;
   }
+
+  errBox.innerHTML = '';
+  selectedFile = file;
+  el.innerHTML = `<span style="color:var(--color-signal-red);font-weight:600;font-size:0.85rem;"><i class="fas fa-file-csv"></i> ${file.name} (${(file.size / 1024).toFixed(1)} KB)</span>`;
+  document.getElementById('dropZone').style.borderColor = 'var(--color-signal-red)';
 }
 
 const dz = document.getElementById('dropZone');
@@ -246,7 +270,6 @@ dz.addEventListener('drop', e => {
   dz.classList.remove('drag-over');
   const f = e.dataTransfer.files[0];
   if (f) {
-    document.getElementById('csvFile').files = e.dataTransfer.files;
     onFileChange({ files: [f] });
   }
 });
@@ -296,6 +319,10 @@ async function runAnalysis(useSample) {
 
 document.addEventListener('DOMContentLoaded', () => {
   loadPatients();
+  const sampleLink = document.getElementById('sample-download-link');
+  if (sampleLink) {
+    sampleLink.href = window.getApiUrl('/sample_ecg.csv');
+  }
   if (urlParams.get('sample') === '1') {
     setTimeout(() => runAnalysis(true), 500);
   }
@@ -303,3 +330,4 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
